@@ -29,6 +29,23 @@ dev = [
   "ruff>=0.11.0,<0.16.0",
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "app",
+  "alembic",
+  "alembic.ini",
+  "README.md",
+  "PLANS.md",
+  "docker-compose.yml",
+  "Dockerfile",
+  "Makefile",
+  ".env.example",
+  ".github/workflows/ci.yml",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
