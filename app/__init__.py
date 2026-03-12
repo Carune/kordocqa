@@ -1,0 +1,1 @@
+"""kordocqa application package."""
