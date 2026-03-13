@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "required": ["answer", "citations", "confidence", "needs_human_review"],
+  "properties": {
+    "answer": {
+      "type": "string"
+    },
+    "citations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["chunk_id", "quote"],
+        "properties": {
+          "chunk_id": { "type": "string", "format": "uuid" },
+          "quote": { "type": "string" }
+        }
+      }
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "needs_human_review": {
+      "type": "boolean"
+    }
+  }
+}
+

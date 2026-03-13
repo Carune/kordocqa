@@ -2,8 +2,8 @@
 
 Production-lean Korean document RAG QA backend (API-first).
 
-Current status: **M0 + M1 + M2 + M3 implemented** from [`PLANS.md`](./PLANS.md).  
-QA generation is intentionally deferred to M4+.
+Current status: **M0 + M1 + M2 + M3 + M4 implemented** from [`PLANS.md`](./PLANS.md).  
+Evaluation and hardening work is deferred to M5.
 
 ## Tech stack
 
@@ -51,6 +51,19 @@ QA generation is intentionally deferred to M4+.
 - Retrieval API:
   - `POST /api/v1/retrieve`
 - Retrieval tests (service + API smoke)
+
+## Implemented in M4
+
+- Grounded QA service using retrieved evidence only
+- Prompt versioning:
+  - `app/prompts/query_answer_v1.txt`
+  - `app/prompts/query_answer_v2.txt`
+  - `app/prompts/answer_schema.json`
+- Structured JSON output validation + citation integrity checks
+- No-answer fallback (`근거 없음`)
+- Query API:
+  - `POST /api/v1/query`
+- QA tests (unit + API smoke)
 
 ## Quick start
 
