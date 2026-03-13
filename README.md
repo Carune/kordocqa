@@ -2,8 +2,8 @@
 
 Production-lean Korean document RAG QA backend (API-first).
 
-Current status: **M0 + M1 + M2 implemented** from [`PLANS.md`](./PLANS.md).  
-Retrieval and QA generation are intentionally deferred to M3+.
+Current status: **M0 + M1 + M2 + M3 implemented** from [`PLANS.md`](./PLANS.md).  
+QA generation is intentionally deferred to M4+.
 
 ## Tech stack
 
@@ -40,6 +40,18 @@ Retrieval and QA generation are intentionally deferred to M3+.
 - Document/chunk persistence via ingestion service
 - Basic ingestion tests (parser/chunking/upload flow)
 
+## Implemented in M3
+
+- Embedding provider adapter with graceful fallback when provider is unconfigured
+- Hybrid retrieval service:
+  - semantic retrieval (pgvector)
+  - lexical retrieval (FTS + trigram fallback)
+  - RRF score fusion
+- Baseline reranker interface + identity reranker
+- Retrieval API:
+  - `POST /api/v1/retrieve`
+- Retrieval tests (service + API smoke)
+
 ## Quick start
 
 1. Copy environment template:
@@ -75,3 +87,4 @@ Retrieval and QA generation are intentionally deferred to M3+.
 - `/health/dependencies` reports model provider as `unconfigured` when keys are absent.
 - Scanned PDFs requiring OCR are out of MVP scope.
 - Reindex behavior is deferred; upload ingestion flow is the only implemented admin ingest action.
+- Retrieval can fall back to lexical-only mode when model provider is unavailable/unconfigured.

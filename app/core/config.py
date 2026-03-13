@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     max_upload_size_bytes: int = Field(default=10 * 1024 * 1024, ge=1)
     chunk_size_chars: int = Field(default=700, ge=100)
     chunk_overlap_chars: int = Field(default=80, ge=0)
+    retrieval_trigram_threshold: float = Field(default=0.2, ge=0.0, le=1.0)
+    embedding_index_batch_size: int = Field(default=32, ge=1, le=512)
+    embedding_auto_index_max_chunks: int = Field(default=500, ge=1)
 
     @model_validator(mode="after")
     def validate_chunking(self) -> "Settings":
