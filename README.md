@@ -2,8 +2,8 @@
 
 Production-lean Korean document RAG QA backend (API-first).
 
-Current status: **M0 + M1 implemented** from [`PLANS.md`](./PLANS.md).  
-Ingestion, retrieval, and QA generation are intentionally deferred to M2+.
+Current status: **M0 + M1 + M2 implemented** from [`PLANS.md`](./PLANS.md).  
+Retrieval and QA generation are intentionally deferred to M3+.
 
 ## Tech stack
 
@@ -26,6 +26,19 @@ Ingestion, retrieval, and QA generation are intentionally deferred to M2+.
 - Alembic init + initial migration (documents/document_chunks)
 - Admin token dependency (`X-Admin-Token`)
 - Dockerfile + docker-compose + Makefile + CI
+
+## Implemented in M2
+
+- Parser interface + adapters:
+  - PDF (`pypdf`)
+  - DOCX (OOXML parser)
+  - TXT
+  - HTML
+- Deterministic text normalization + chunking service
+- Admin upload endpoint:
+  - `POST /api/v1/admin/documents/upload`
+- Document/chunk persistence via ingestion service
+- Basic ingestion tests (parser/chunking/upload flow)
 
 ## Quick start
 
@@ -60,3 +73,5 @@ Ingestion, retrieval, and QA generation are intentionally deferred to M2+.
 - This project is API-first and backend-only.
 - If provider API keys are missing, app startup must still work.
 - `/health/dependencies` reports model provider as `unconfigured` when keys are absent.
+- Scanned PDFs requiring OCR are out of MVP scope.
+- Reindex behavior is deferred; upload ingestion flow is the only implemented admin ingest action.

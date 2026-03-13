@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal, Optional
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,6 +33,16 @@ class Settings(BaseSettings):
     langfuse_public_key: Optional[str] = None
     langfuse_secret_key: Optional[str] = None
     langfuse_host: Optional[str] = None
+
+    max_upload_size_bytes: int = Field(default=10 * 1024 * 1024, ge=1)
+    chunk_size_chars: int = Field(default=700, ge=100)
+    chunk_overlap_chars: int = Field(default=80, ge=0)
+
+    @model_validator(mode="after")
+    def validate_chunking(self) -> "Settings":
+        if self.chunk_overlap_chars >= self.chunk_size_chars:
+            raise ValueError("CHUNK_OVERLAP_CHARS must be smaller than CHUNK_SIZE_CHARS.")
+        return self
 
 
 @lru_cache(maxsize=1)
