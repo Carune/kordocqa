@@ -20,13 +20,18 @@ down_revision: Optional[str] = None
 branch_labels: Optional[Union[str, Sequence[str]]] = None
 depends_on: Optional[Union[str, Sequence[str]]] = None
 
-document_status_enum = sa.Enum("uploaded", "indexed", "failed", name="document_status")
+document_status_enum = postgresql.ENUM(
+    "uploaded",
+    "indexed",
+    "failed",
+    name="document_status",
+    create_type=False,
+)
 
 
 def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
     op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
-
     document_status_enum.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
