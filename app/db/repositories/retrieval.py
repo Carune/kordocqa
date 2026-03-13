@@ -17,6 +17,7 @@ class RetrievalCandidate:
     section_path: str | None
     page_number: int | None
     metadata: dict[str, Any] | None
+    source_filename: str | None = None
     lexical_score: float | None = None
     semantic_score: float | None = None
     fusion_score: float | None = None
@@ -27,18 +28,31 @@ class RetrievalRepository:
         self.db = db
 
     def ensure_content_tsv(self, document_id: uuid.UUID | None = None) -> int:
-        stmt = text(
-            """
-            UPDATE document_chunks
-            SET content_tsv = to_tsvector(
-                'simple',
-                concat_ws(' ', coalesce(title, ''), coalesce(section_path, ''), content)
+        if document_id is None:
+            stmt = text(
+                """
+                UPDATE document_chunks
+                SET content_tsv = to_tsvector(
+                    'simple',
+                    concat_ws(' ', coalesce(title, ''), coalesce(section_path, ''), content)
+                )
+                WHERE content_tsv IS NULL
+                """
             )
-            WHERE (:document_id IS NULL OR document_id = :document_id)
-              AND content_tsv IS NULL
-            """
-        )
-        result = self.db.execute(stmt, {"document_id": document_id})
+            result = self.db.execute(stmt)
+        else:
+            stmt = text(
+                """
+                UPDATE document_chunks
+                SET content_tsv = to_tsvector(
+                    'simple',
+                    concat_ws(' ', coalesce(title, ''), coalesce(section_path, ''), content)
+                )
+                WHERE document_id = :document_id
+                  AND content_tsv IS NULL
+                """
+            )
+            result = self.db.execute(stmt, {"document_id": document_id})
         self.db.commit()
         return result.rowcount or 0
 
@@ -48,17 +62,32 @@ class RetrievalRepository:
         limit: int,
         document_id: uuid.UUID | None = None,
     ) -> list[tuple[uuid.UUID, str]]:
-        stmt = text(
-            """
-            SELECT id, content
-            FROM document_chunks
-            WHERE embedding IS NULL
-              AND (:document_id IS NULL OR document_id = :document_id)
-            ORDER BY created_at ASC
-            LIMIT :limit
-            """
-        )
-        rows = self.db.execute(stmt, {"limit": limit, "document_id": document_id}).mappings().all()
+        if document_id is None:
+            stmt = text(
+                """
+                SELECT id, content
+                FROM document_chunks
+                WHERE embedding IS NULL
+                ORDER BY created_at ASC
+                LIMIT :limit
+                """
+            )
+            rows = self.db.execute(stmt, {"limit": limit}).mappings().all()
+        else:
+            stmt = text(
+                """
+                SELECT id, content
+                FROM document_chunks
+                WHERE embedding IS NULL
+                  AND document_id = :document_id
+                ORDER BY created_at ASC
+                LIMIT :limit
+                """
+            )
+            rows = self.db.execute(
+                stmt,
+                {"limit": limit, "document_id": document_id},
+            ).mappings().all()
         return [(row["id"], row["content"]) for row in rows]
 
     def update_chunk_embedding(self, *, chunk_id: uuid.UUID, embedding: list[float]) -> None:
@@ -89,25 +118,52 @@ class RetrievalRepository:
             return []
 
         vector_literal = self._vector_literal(query_embedding)
-        stmt = text(
-            f"""
-            SELECT
-                id AS chunk_id,
-                document_id,
-                content,
-                title,
-                section_path,
-                page_number,
-                metadata,
-                (1 - (embedding <=> '{vector_literal}'::vector)) AS semantic_score
-            FROM document_chunks
-            WHERE embedding IS NOT NULL
-              AND (:document_id IS NULL OR document_id = :document_id)
-            ORDER BY embedding <=> '{vector_literal}'::vector
-            LIMIT :limit
-            """
-        )
-        rows = self.db.execute(stmt, {"limit": limit, "document_id": document_id}).mappings().all()
+        if document_id is None:
+            stmt = text(
+                f"""
+                SELECT
+                    dc.id AS chunk_id,
+                    dc.document_id,
+                    dc.content,
+                    dc.title,
+                    dc.section_path,
+                    dc.page_number,
+                    dc.metadata,
+                    d.source_filename,
+                    (1 - (dc.embedding <=> '{vector_literal}'::vector)) AS semantic_score
+                FROM document_chunks dc
+                JOIN documents d ON d.id = dc.document_id
+                WHERE dc.embedding IS NOT NULL
+                ORDER BY dc.embedding <=> '{vector_literal}'::vector
+                LIMIT :limit
+                """
+            )
+            rows = self.db.execute(stmt, {"limit": limit}).mappings().all()
+        else:
+            stmt = text(
+                f"""
+                SELECT
+                    dc.id AS chunk_id,
+                    dc.document_id,
+                    dc.content,
+                    dc.title,
+                    dc.section_path,
+                    dc.page_number,
+                    dc.metadata,
+                    d.source_filename,
+                    (1 - (dc.embedding <=> '{vector_literal}'::vector)) AS semantic_score
+                FROM document_chunks dc
+                JOIN documents d ON d.id = dc.document_id
+                WHERE dc.embedding IS NOT NULL
+                  AND dc.document_id = :document_id
+                ORDER BY dc.embedding <=> '{vector_literal}'::vector
+                LIMIT :limit
+                """
+            )
+            rows = self.db.execute(
+                stmt,
+                {"limit": limit, "document_id": document_id},
+            ).mappings().all()
         return [
             self._candidate_from_row(row=row, semantic_score=row["semantic_score"])
             for row in rows
@@ -121,38 +177,20 @@ class RetrievalRepository:
         document_id: uuid.UUID | None = None,
         trigram_threshold: float = 0.2,
     ) -> list[RetrievalCandidate]:
-        stmt = text(
-            """
-            WITH query_data AS (
-                SELECT plainto_tsquery('simple', :query) AS tsq
-            )
-            SELECT
-                dc.id AS chunk_id,
-                dc.document_id,
-                dc.content,
-                dc.title,
-                dc.section_path,
-                dc.page_number,
-                dc.metadata,
-                ts_rank_cd(
-                    coalesce(
-                        dc.content_tsv,
-                        to_tsvector(
-                            'simple',
-                            concat_ws(
-                                ' ',
-                                coalesce(dc.title, ''),
-                                coalesce(dc.section_path, ''),
-                                dc.content
-                            )
-                        )
-                    ),
-                    query_data.tsq
-                ) AS lexical_score,
-                similarity(dc.content, :query) AS trigram_score
-            FROM document_chunks dc, query_data
-            WHERE (:document_id IS NULL OR dc.document_id = :document_id)
-              AND (
+        base_sql = """
+        WITH query_data AS (
+            SELECT plainto_tsquery('simple', :query) AS tsq
+        )
+        SELECT
+            dc.id AS chunk_id,
+            dc.document_id,
+            dc.content,
+            dc.title,
+            dc.section_path,
+            dc.page_number,
+            dc.metadata,
+            d.source_filename,
+            ts_rank_cd(
                 coalesce(
                     dc.content_tsv,
                     to_tsvector(
@@ -164,39 +202,62 @@ class RetrievalRepository:
                             dc.content
                         )
                     )
-                ) @@ query_data.tsq
-                OR similarity(dc.content, :query) >= :trigram_threshold
-              )
-            ORDER BY GREATEST(
-                ts_rank_cd(
-                    coalesce(
-                        dc.content_tsv,
-                        to_tsvector(
-                            'simple',
-                            concat_ws(
-                                ' ',
-                                coalesce(dc.title, ''),
-                                coalesce(dc.section_path, ''),
-                                dc.content
-                            )
-                        )
-                    ),
-                    query_data.tsq
                 ),
-                similarity(dc.content, :query)
-            ) DESC
-            LIMIT :limit
-            """
-        )
-        rows = self.db.execute(
-            stmt,
-            {
-                "query": query,
-                "limit": limit,
-                "document_id": document_id,
-                "trigram_threshold": trigram_threshold,
-            },
-        ).mappings().all()
+                query_data.tsq
+            ) AS lexical_score,
+            similarity(dc.content, :query) AS trigram_score
+        FROM document_chunks dc
+        JOIN documents d ON d.id = dc.document_id
+        CROSS JOIN query_data
+        WHERE {document_filter}
+          AND (
+            coalesce(
+                dc.content_tsv,
+                to_tsvector(
+                    'simple',
+                    concat_ws(
+                        ' ',
+                        coalesce(dc.title, ''),
+                        coalesce(dc.section_path, ''),
+                        dc.content
+                    )
+                )
+            ) @@ query_data.tsq
+            OR similarity(dc.content, :query) >= :trigram_threshold
+          )
+        ORDER BY GREATEST(
+            ts_rank_cd(
+                coalesce(
+                    dc.content_tsv,
+                    to_tsvector(
+                        'simple',
+                        concat_ws(
+                            ' ',
+                            coalesce(dc.title, ''),
+                            coalesce(dc.section_path, ''),
+                            dc.content
+                        )
+                    )
+                ),
+                query_data.tsq
+            ),
+            similarity(dc.content, :query)
+        ) DESC
+        LIMIT :limit
+        """
+
+        params: dict[str, Any] = {
+            "query": query,
+            "limit": limit,
+            "trigram_threshold": trigram_threshold,
+        }
+        if document_id is None:
+            stmt = text(base_sql.format(document_filter="TRUE"))
+        else:
+            stmt = text(base_sql.format(document_filter="dc.document_id = :document_id"))
+            params["document_id"] = document_id
+
+        rows = self.db.execute(stmt, params).mappings().all()
         return [
             self._candidate_from_row(row=row, lexical_score=row["lexical_score"])
             for row in rows
@@ -217,6 +278,7 @@ class RetrievalRepository:
             section_path=row["section_path"],
             page_number=row["page_number"],
             metadata=row["metadata"],
+            source_filename=row.get("source_filename"),
             lexical_score=self._safe_float(lexical_score),
             semantic_score=self._safe_float(semantic_score),
         )

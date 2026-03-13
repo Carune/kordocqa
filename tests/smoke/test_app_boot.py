@@ -11,3 +11,5 @@ def test_create_app_boots() -> None:
     assert "/health" in route_paths
     assert "/health/dependencies" in route_paths
     assert "/api/v1/retrieve" in route_paths
+    assert "/api/v1/query" in route_paths
+    assert "/api/v1/evals/run" in route_paths

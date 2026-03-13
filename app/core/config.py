@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     retrieval_trigram_threshold: float = Field(default=0.2, ge=0.0, le=1.0)
     embedding_index_batch_size: int = Field(default=32, ge=1, le=512)
     embedding_auto_index_max_chunks: int = Field(default=500, ge=1)
+    query_top_k: int = Field(default=5, ge=1, le=50)
+    query_lexical_k: int = Field(default=20, ge=1, le=200)
+    query_semantic_k: int = Field(default=20, ge=1, le=200)
+    query_prompt_version: Literal["v1", "v2"] = "v1"
+    eval_default_dataset_path: str = "app/evals/datasets/ko_sample_eval.jsonl"
+    eval_reports_dir: str = "app/evals/reports"
+    eval_cache_prefix: str = "evals"
+    eval_cache_ttl_seconds: int = Field(default=300, ge=0, le=86400)
 
     @model_validator(mode="after")
     def validate_chunking(self) -> "Settings":

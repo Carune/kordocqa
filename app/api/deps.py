@@ -5,6 +5,7 @@ from collections.abc import Generator
 from typing import Annotated, Optional
 
 from fastapi import Depends, Header, HTTPException, status
+from redis import Redis
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -12,8 +13,11 @@ from app.db.repositories import RetrievalRepository
 from app.db.session import get_db_session
 from app.services.chunking import ChunkingService
 from app.services.embeddings import build_embedding_provider
+from app.services.evals import EvalService
 from app.services.ingestion import IngestionService
+from app.services.llm import build_llm_provider
 from app.services.parsers import ParserFactory
+from app.services.qa import QAService
 from app.services.reranking import IdentityReranker
 from app.services.retrieval import RetrievalService
 
@@ -49,6 +53,39 @@ def get_retrieval_service(
         trigram_threshold=settings.retrieval_trigram_threshold,
         index_batch_size=settings.embedding_index_batch_size,
         auto_index_max_chunks=settings.embedding_auto_index_max_chunks,
+    )
+
+
+def get_qa_service(
+    settings: Annotated[Settings, Depends(get_runtime_settings)],
+    retrieval_service: Annotated[RetrievalService, Depends(get_retrieval_service)],
+) -> QAService:
+    return QAService(
+        retrieval_service=retrieval_service,
+        llm_provider=build_llm_provider(settings),
+        default_top_k=settings.query_top_k,
+        default_lexical_k=settings.query_lexical_k,
+        default_semantic_k=settings.query_semantic_k,
+        default_prompt_version=settings.query_prompt_version,
+    )
+
+
+def get_eval_service(
+    settings: Annotated[Settings, Depends(get_runtime_settings)],
+    qa_service: Annotated[QAService, Depends(get_qa_service)],
+) -> EvalService:
+    try:
+        redis_client = Redis.from_url(
+            settings.redis_url,
+            socket_connect_timeout=1,
+            socket_timeout=1,
+        )
+    except Exception:  # noqa: BLE001
+        redis_client = None
+    return EvalService(
+        qa_service=qa_service,
+        settings=settings,
+        redis_client=redis_client,
     )
 
 
