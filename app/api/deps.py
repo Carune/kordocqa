@@ -5,6 +5,7 @@ from collections.abc import Generator
 from typing import Annotated, Optional
 
 from fastapi import Depends, Header, HTTPException, status
+from redis import Redis
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -12,6 +13,7 @@ from app.db.repositories import RetrievalRepository
 from app.db.session import get_db_session
 from app.services.chunking import ChunkingService
 from app.services.embeddings import build_embedding_provider
+from app.services.evals import EvalService
 from app.services.ingestion import IngestionService
 from app.services.llm import build_llm_provider
 from app.services.parsers import ParserFactory
@@ -65,6 +67,25 @@ def get_qa_service(
         default_lexical_k=settings.query_lexical_k,
         default_semantic_k=settings.query_semantic_k,
         default_prompt_version=settings.query_prompt_version,
+    )
+
+
+def get_eval_service(
+    settings: Annotated[Settings, Depends(get_runtime_settings)],
+    qa_service: Annotated[QAService, Depends(get_qa_service)],
+) -> EvalService:
+    try:
+        redis_client = Redis.from_url(
+            settings.redis_url,
+            socket_connect_timeout=1,
+            socket_timeout=1,
+        )
+    except Exception:  # noqa: BLE001
+        redis_client = None
+    return EvalService(
+        qa_service=qa_service,
+        settings=settings,
+        redis_client=redis_client,
     )
 
 

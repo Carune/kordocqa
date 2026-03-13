@@ -2,8 +2,7 @@
 
 Production-lean Korean document RAG QA backend (API-first).
 
-Current status: **M0 + M1 + M2 + M3 + M4 implemented** from [`PLANS.md`](./PLANS.md).  
-Evaluation and hardening work is deferred to M5.
+Current status: **M0 + M1 + M2 + M3 + M4 + M5 implemented** from [`PLANS.md`](./PLANS.md).
 
 ## Tech stack
 
@@ -65,6 +64,18 @@ Evaluation and hardening work is deferred to M5.
   - `POST /api/v1/query`
 - QA tests (unit + API smoke)
 
+## Implemented in M5
+
+- Korean eval dataset (`app/evals/datasets/ko_sample_eval.jsonl`)
+- Eval runner service (`app/services/evals.py`) with:
+  - baseline vs improved prompt comparison (v1 vs v2)
+  - retrieval/answer quality metrics
+  - JSON report output under `app/evals/reports/`
+- Eval API:
+  - `POST /api/v1/evals/run` (admin token required)
+- Request logging middleware with request ID + latency fields
+- Optional Redis cache for latest eval report summary
+
 ## Quick start
 
 1. Copy environment template:
@@ -92,6 +103,12 @@ Evaluation and hardening work is deferred to M5.
    ```bash
    make run
    ```
+
+## Run eval
+
+```bash
+python -m app.services.evals --dataset app/evals/datasets/ko_sample_eval.jsonl
+```
 
 ## Assumptions
 

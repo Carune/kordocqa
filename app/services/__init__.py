@@ -6,6 +6,7 @@ from app.services.embeddings import (
     EmbeddingProviderError,
     EmbeddingProviderUnavailableError,
 )
+from app.services.evals import EvalService
 from app.services.ingestion import IngestionService
 from app.services.llm import (
     BaseLLMProvider,
@@ -23,6 +24,7 @@ __all__ = [
     "ChunkingService",
     "EmbeddingProviderError",
     "EmbeddingProviderUnavailableError",
+    "EvalService",
     "IdentityReranker",
     "IngestionService",
     "ModelProviderError",

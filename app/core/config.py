@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     query_lexical_k: int = Field(default=20, ge=1, le=200)
     query_semantic_k: int = Field(default=20, ge=1, le=200)
     query_prompt_version: Literal["v1", "v2"] = "v1"
+    eval_default_dataset_path: str = "app/evals/datasets/ko_sample_eval.jsonl"
+    eval_reports_dir: str = "app/evals/reports"
+    eval_cache_prefix: str = "evals"
+    eval_cache_ttl_seconds: int = Field(default=300, ge=0, le=86400)
 
     @model_validator(mode="after")
     def validate_chunking(self) -> "Settings":
